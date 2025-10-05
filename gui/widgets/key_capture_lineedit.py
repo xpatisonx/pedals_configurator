@@ -5,16 +5,20 @@ from config.keycode_map import translate_keys, reverse_translate_keys
 
 class KeyCaptureLineEdit(QLineEdit):
     """
-    Pole do przechwytywania kombinacji klawiszy.
-    - for_config=True  → zwraca HID stringi (np. CONTROL+ENTER)
-    - for_config=False → zwraca Qt/keyboard nazwy (np. CTRL+RETURN)
+    A custom input field for capturing keyboard combinations.
+    - for_config=True  → returns HID strings (e.g. CONTROL+ENTER)
+    - for_config=False → returns Qt/keyboard names (e.g. CTRL+RETURN)
     """
+
     def __init__(self, for_config=False):
         super().__init__()
-        self.setPlaceholderText("Wciśnij klawisz(e)...")
+        self.setPlaceholderText("Press key(s)...")
         self.for_config = for_config
 
+    # ------------------------------------------------------------------
+
     def keyPressEvent(self, event):
+        """Capture pressed key(s) and display the combination."""
         key = event.key()
         modifiers = event.modifiers()
 
@@ -36,7 +40,7 @@ class KeyCaptureLineEdit(QLineEdit):
         combo = "+".join(parts)
 
         if self.for_config:
-            # Translacja GUI → HID i od razu pokazanie HID-owych nazw
+            # Translate GUI → HID and immediately display HID names
             hid_value = translate_keys(combo)
             if isinstance(hid_value, list):
                 self.setText("+".join(hid_value))
@@ -47,10 +51,12 @@ class KeyCaptureLineEdit(QLineEdit):
 
         event.accept()
 
+    # ------------------------------------------------------------------
+
     def get_parsed_value(self, action_type):
         """
-        Zwraca wartość do zapisania.
-        Jeśli for_config=True → HID stringi.
+        Return the field value ready to be saved.
+        If for_config=True → translates to HID strings.
         """
         text = self.text().strip()
 
@@ -66,11 +72,13 @@ class KeyCaptureLineEdit(QLineEdit):
             return translate_keys(value)
         return value
 
+    # ------------------------------------------------------------------
+
     def set_value(self, value):
         """
-        Ustawia początkową wartość pola.
-        - przy for_config=True przetłumaczy HID → GUI
-        - value może być listą lub stringiem
+        Set the initial field value.
+        - with for_config=True it translates HID → GUI
+        - value may be a list or a single string
         """
         if not value:
             self.setText("")
@@ -89,7 +97,7 @@ class KeyCaptureLineEdit(QLineEdit):
                 if self.for_config else
                 str(value).upper()
             )
-            # reverse_translate zwraca string lub listę, upewniamy się, że jest tekst
+            # reverse_translate may return a list; ensure it's a string
             if isinstance(display_value, list):
                 display_value = "+".join(display_value)
             self.setText(display_value)

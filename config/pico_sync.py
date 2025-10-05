@@ -6,16 +6,18 @@ from config.config_manager import load_config, save_config
 CONFIG_FILENAME = "config.json"
 VOLUME_LABEL = "CIRCUITPY"
 
+
 def find_circuitpy_drive():
     """
-    Zwraca mountpoint CIRCUITPY (np. 'E:\\') albo None.
+    Returns the mount point of the CIRCUITPY drive (e.g. 'E:\\') or None if not found.
     """
     for part in psutil.disk_partitions(all=False):
         if VOLUME_LABEL in part.device or VOLUME_LABEL in part.mountpoint:
             return part.mountpoint
         try:
-            if os.path.exists(os.path.join(part.mountpoint, "boot_out.txt")):
-                with open(os.path.join(part.mountpoint, "boot_out.txt"), "r", encoding="utf-8", errors="ignore") as f:
+            boot_file = os.path.join(part.mountpoint, "boot_out.txt")
+            if os.path.exists(boot_file):
+                with open(boot_file, "r", encoding="utf-8", errors="ignore") as f:
                     if "Adafruit CircuitPython" in f.read():
                         return part.mountpoint
         except Exception:
@@ -25,11 +27,11 @@ def find_circuitpy_drive():
 
 def sync_to_pico():
     """
-    Kopiuje lokalny config.json na Pico.
+    Copy the local config.json to the connected Pico (CIRCUITPY drive).
     """
     drive = find_circuitpy_drive()
     if not drive:
-        raise RuntimeError("Nie znaleziono podłączonego Pico (CIRCUITPY).")
+        raise RuntimeError("No connected Pico (CIRCUITPY) was found.")
 
     local_cfg = load_config()
     path = os.path.join(drive, CONFIG_FILENAME)
@@ -46,15 +48,15 @@ def sync_to_pico():
 
 def sync_from_pico():
     """
-    Kopiuje config.json z Pico do lokalnego pliku.
+    Copy config.json from the connected Pico to the local config directory.
     """
     drive = find_circuitpy_drive()
     if not drive:
-        raise RuntimeError("Nie znaleziono podłączonego Pico (CIRCUITPY).")
+        raise RuntimeError("No connected Pico (CIRCUITPY) was found.")
 
     path = os.path.join(drive, CONFIG_FILENAME)
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Brak pliku {CONFIG_FILENAME} na Pico.")
+        raise FileNotFoundError(f"File '{CONFIG_FILENAME}' not found on Pico.")
 
     with open(path, "r", encoding="utf-8") as f:
         pico_cfg = json.load(f)

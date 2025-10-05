@@ -1,16 +1,16 @@
-# GUI nazwa (Qt/keyboard) -> HID nazwa (adafruit_hid.keycode)
+# GUI name (Qt/keyboard) → HID name (adafruit_hid.keycode)
 GUI_TO_HID = {
-    # Modyfikatory
+    # Modifiers
     "CTRL": "CONTROL",
     "CONTROL": "CONTROL",
     "SHIFT": "SHIFT",
     "ALT": "ALT",
     "META": "GUI",      # Windows / Command key
 
-    # Litery
+    # Letters
     **{chr(i): chr(i) for i in range(ord("A"), ord("Z") + 1)},
 
-    # Cyfry główne
+    # Number keys (top row)
     "0": "ZERO",
     "1": "ONE",
     "2": "TWO",
@@ -22,7 +22,7 @@ GUI_TO_HID = {
     "8": "EIGHT",
     "9": "NINE",
 
-    # Enter / Escape / Backspace / Tab / Space
+    # Common keys
     "RETURN": "ENTER",
     "ENTER": "ENTER",
     "ESC": "ESCAPE",
@@ -35,7 +35,7 @@ GUI_TO_HID = {
     "INS": "INSERT",
     "INSERT": "INSERT",
 
-    # Strzałki
+    # Arrows
     "UP": "UP_ARROW",
     "DOWN": "DOWN_ARROW",
     "LEFT": "LEFT_ARROW",
@@ -47,10 +47,10 @@ GUI_TO_HID = {
     "HOME": "HOME",
     "END": "END",
 
-    # Klawisze funkcyjne
+    # Function keys
     **{f"F{i}": f"F{i}" for i in range(1, 25)},
 
-    # Znaki interpunkcyjne (główne klawisze)
+    # Punctuation / main symbols
     "-": "MINUS",
     "=": "EQUALS",
     "[": "LEFT_BRACKET",
@@ -63,7 +63,7 @@ GUI_TO_HID = {
     ".": "PERIOD",
     "/": "FORWARD_SLASH",
 
-    # Klawiatura numeryczna (opcjonalnie – Pico może używać jako HID KEYPAD_xxx)
+    # Numeric keypad (optional — Pico may use these HID KEYPAD_* names)
     "NUMLOCK": "KEYPAD_NUMLOCK",
     "NUMPAD0": "KEYPAD_ZERO",
     "NUMPAD1": "KEYPAD_ONE",
@@ -83,9 +83,10 @@ GUI_TO_HID = {
     "NUMPADENTER": "KEYPAD_ENTER",
 }
 
+# Reverse mapping HID → GUI
 HID_TO_GUI = {v: k for k, v in GUI_TO_HID.items()}
 
-# Poprawki aliasów, żeby ładniej wyglądało w GUI
+# Aliases for nicer display in GUI
 HID_TO_GUI.update({
     "GUI": "META",
     "ENTER": "RETURN",
@@ -99,9 +100,11 @@ HID_TO_GUI.update({
     "DELETE": "DEL",
 })
 
+
 def translate_keys(value):
     """
-    Zamienia string/listę z GUI (np. 'CTRL+ALT+A') na HID stringi.
+    Convert GUI-style key names (e.g. 'CTRL+ALT+A')
+    to HID key strings used by adafruit_hid.keycode.
     """
     if isinstance(value, str):
         parts = [v.strip().upper() for v in value.split("+")]
@@ -115,7 +118,8 @@ def translate_keys(value):
 
 def reverse_translate_keys(value):
     """
-    Zamienia HID stringi na GUI-friendly (np. 'CONTROL+ALT+ENTER' → 'CTRL+ALT+RETURN').
+    Convert HID key strings back to GUI-friendly names
+    (e.g. ['CONTROL', 'ALT', 'ENTER'] → ['CTRL', 'ALT', 'RETURN']).
     """
     if isinstance(value, str):
         return HID_TO_GUI.get(value.upper(), value.upper())
@@ -123,4 +127,3 @@ def reverse_translate_keys(value):
         return [HID_TO_GUI.get(str(k).upper(), str(k).upper()) for k in value]
     else:
         return value
-

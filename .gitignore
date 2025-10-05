@@ -1,0 +1,77 @@
+# =========================
+# Python build / cache
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# Virtual environments
+# =========================
+venv/
+.env/
+env/
+.venv/
+
+# =========================
+# IDE / Editors
+# =========================
+# PyCharm
+.idea/
+# VSCode
+.vscode/
+# Visual Studio
+.vs/
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Distribution / Packaging
+# =========================
+build/
+dist/
+*.egg-info/
+*.spec
+
+# =========================
+# Logs / backups
+# =========================
+*.log
+*.bak
+*.tmp
+
+# =========================
+# Compiled resources
+# =========================
+*.so
+*.dll
+*.exe
+*.o
+*.a
+*.lib
+
+# =========================
+# Temporary data
+# =========================
+*.swp
+*.swo
+*.orig
+
+# =========================
+# Project specific
+# =========================
+# Ikony generowane z SVG (zrobisz je lokalnie)
+icons/*.ico
+icons/*.png
+
+# Pliki konfiguracyjne użytkownika
+config/config.json
+config/hotkeys.json
+
+# Cache PyInstaller / build
+__pyinstaller/

@@ -62,13 +62,6 @@ dist/
 *.swo
 *.orig
 
-# =========================
-# Project specific
-# =========================
-# Ikony generowane z SVG (zrobisz je lokalnie)
-icons/*.ico
-icons/*.png
-
 # Pliki konfiguracyjne użytkownika
 config/config.json
 config/hotkeys.json

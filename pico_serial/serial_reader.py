@@ -1,12 +1,13 @@
 import serial
 import threading
 import queue
+from serial.tools import list_ports
 
 
 class SerialReader:
     """Background serial reader that continuously polls data from the Pico."""
 
-    def __init__(self, port="COM3", baudrate=115200):
+    def __init__(self, port=None, baudrate=115200):
         self.port = port
         self.baudrate = baudrate
         self.q = queue.Queue()
@@ -16,8 +17,28 @@ class SerialReader:
 
     # ------------------------------------------------------------------
 
-    def start(self):
+    @staticmethod
+    def list_available_ports():
+        """Return a list of detected serial port device names."""
+        return [port.device for port in list_ports.comports()]
+
+    # ------------------------------------------------------------------
+
+    def is_connected(self):
+        """Return True when the serial port is currently open."""
+        return bool(self.ser and self.ser.is_open and self.running)
+
+    # ------------------------------------------------------------------
+
+    def start(self, port=None):
         """Open the serial port and start the background reading thread."""
+        if port is not None:
+            self.port = port
+        if not self.port:
+            raise ValueError("No serial port selected.")
+        if self.is_connected():
+            return
+
         self.ser = serial.Serial(self.port, self.baudrate, timeout=1)
         self.running = True
         self.thread = threading.Thread(target=self._read_loop, daemon=True)
@@ -42,7 +63,14 @@ class SerialReader:
         """Stop reading and close the serial port."""
         self.running = False
         if self.ser:
-            self.ser.close()
+            try:
+                if self.ser.is_open:
+                    self.ser.close()
+            finally:
+                self.ser = None
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=0.5)
+        self.thread = None
 
     # ------------------------------------------------------------------
 

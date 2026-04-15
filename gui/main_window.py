@@ -43,7 +43,14 @@ class PedalsApp(QWidget):
 
         # --- Tabs ---
         self.config_tab = ConfigTab()
-        self.logs_tab = LogsTab(self.load_config, self.save_config)
+        self.serial = SerialReader(baudrate=115200)
+        self.logs_tab = LogsTab(
+            self.load_config,
+            self.save_config,
+            self.refresh_serial_ports,
+            self.connect_serial,
+            self.disconnect_serial
+        )
         self.presets_tab = PresetsTab(self.on_preset_applied, self.config_tab.get_current_config)
 
         # --- Hotkey bridge (thread-safe signal emitter) ---
@@ -69,17 +76,12 @@ class PedalsApp(QWidget):
         self.tabs.addTab(self.sync_tab, "🔌 Sync")
         self.tabs.addTab(self.logs_tab, "📟 Logs")
 
-        # --- Serial port ---
-        self.serial = SerialReader(port="COM3", baudrate=115200)
-        try:
-            self.serial.start()
-            self.logs_tab.append_log("Connected to Pico on COM3.")
-        except Exception as e:
-            self.logs_tab.append_log(f"[Serial error]: {e}")
-
         self.timer = QTimer()
         self.timer.timeout.connect(self.check_serial)
         self.timer.start(100)
+
+        self.refresh_serial_ports()
+        self.logs_tab.append_log("Select a serial port and click Connect to start reading Pico logs.")
 
         # --- Initial load ---
         self.load_config()
@@ -108,9 +110,51 @@ class PedalsApp(QWidget):
 
     def check_serial(self):
         """Check if Pico has sent any data and display it in logs."""
+        if not self.serial.is_connected():
+            return
         line = self.serial.get_line()
         if line:
             self.logs_tab.append_log(f"[Pico] {line}")
+
+    def refresh_serial_ports(self):
+        """Detect serial ports and refresh the dropdown in the logs tab."""
+        ports = self.serial.list_available_ports()
+        self.logs_tab.set_available_ports(ports)
+        if ports:
+            self.logs_tab.append_log(f"Detected serial ports: {', '.join(ports)}")
+        else:
+            self.logs_tab.append_log("No active serial ports detected.")
+
+    def connect_serial(self, port):
+        """Connect to the selected serial port."""
+        if not port:
+            self.logs_tab.append_log("Select a serial port before connecting.")
+            return
+
+        if self.serial.is_connected():
+            if self.serial.port == port:
+                self.logs_tab.append_log(f"Already connected to {port}.")
+                return
+            self.disconnect_serial()
+
+        try:
+            self.serial.start(port=port)
+            self.logs_tab.append_log(f"Connected to Pico on {port}.")
+        except Exception as e:
+            self.logs_tab.append_log(f"[Serial connect error]: {e}")
+
+    def disconnect_serial(self):
+        """Disconnect from the current serial port if connected."""
+        if not self.serial.is_connected():
+            self.logs_tab.append_log("Serial port is not connected.")
+            return
+
+        port = self.serial.port
+        try:
+            self.serial.stop()
+            self.logs_tab.append_log(f"Disconnected from {port}.")
+        except Exception as e:
+            self.logs_tab.append_log(f"[Serial disconnect error]: {e}")
 
     def load_config(self):
         """Load configuration from local config.json."""

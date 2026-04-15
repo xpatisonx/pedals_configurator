@@ -1,5 +1,6 @@
 import json
 import os
+import platform
 import threading
 import time
 import keyboard
@@ -13,17 +14,19 @@ class DynamicHotkeyManager:
     Uses the 'keyboard' library for system-wide key hooks.
     """
 
-    def __init__(self, emit_preset_name):
+    def __init__(self, emit_preset_name, error_callback=None):
         """
         :param emit_preset_name: a callable (signal emitter)
                                  that receives the preset name to load.
         """
         self.emit_preset_name = emit_preset_name
+        self.error_callback = error_callback or (lambda message: None)
         self.hotkey_map = {}
         self._handles = []
         self._thread = None
         self._running = False
         self._stop_evt = threading.Event()
+        self.available = True
         self.load_hotkeys()
 
     # ------------------------------------------------------------------
@@ -52,6 +55,10 @@ class DynamicHotkeyManager:
         """Start listening for hotkeys in a background thread."""
         if self._running:
             return
+        if platform.system() == "Darwin" and getattr(os, "geteuid", lambda: 1)() != 0:
+            self.available = False
+            self.error_callback("[Hotkeys error]: Global hotkeys on macOS require elevated permissions.")
+            return
         self._running = True
         self._stop_evt.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -61,7 +68,13 @@ class DynamicHotkeyManager:
 
     def _run(self):
         """Main loop: installs hotkeys and keeps the manager alive."""
-        self._install_only()
+        try:
+            self._install_only()
+        except Exception as e:
+            self.available = False
+            self._running = False
+            self.error_callback(f"[Hotkeys error]: {e}")
+            return
         # Keep-alive loop for the manager (keyboard has its own thread)
         while self._running and not self._stop_evt.wait(0.2):
             pass
@@ -81,8 +94,15 @@ class DynamicHotkeyManager:
 
     def reload_hooks(self):
         """Reinstall all active hotkeys."""
+        if not self.available:
+            self.error_callback("[Hotkeys error]: Global hotkeys are unavailable on this system/session.")
+            return
         self._unhook_all()
-        self._install_only()
+        try:
+            self._install_only()
+        except Exception as e:
+            self.available = False
+            self.error_callback(f"[Hotkeys error]: {e}")
 
     # ------------------------------------------------------------------
 

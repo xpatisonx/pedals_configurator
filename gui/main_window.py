@@ -9,13 +9,12 @@ import PySide6.QtSvg
 from pico_serial.serial_reader import SerialReader
 from hotkeys.hotkey_manager import DynamicHotkeyManager
 from config.config_manager import save_config, load_config
-from config.pico_sync import sync_to_pico
+from config.pico_sync import sync_to_pico, sync_from_pico
 from config.preset_manager import list_presets, load_preset, save_preset, delete_preset
 
-from gui.tabs.logs_tab import LogsTab
+from gui.tabs.device_tab import DeviceTab
 from gui.tabs.config_tab import ConfigTab
 from gui.tabs.hotkeys_tab import HotkeysTab
-from gui.tabs.sync_tab import SyncTab
 
 
 class HotkeyBridge(QObject):
@@ -53,12 +52,12 @@ class PedalsApp(QWidget):
             self.delete_selected_preset,
         )
         self.serial = SerialReader(baudrate=115200)
-        self.logs_tab = LogsTab(
-            self.load_config,
-            self.save_config,
+        self.device_tab = DeviceTab(
             self.refresh_serial_ports,
             self.connect_serial,
-            self.disconnect_serial
+            self.disconnect_serial,
+            self.load_current_config_to_device,
+            self.download_config_from_device,
         )
 
         # --- Hotkey bridge (thread-safe signal emitter) ---
@@ -66,29 +65,26 @@ class PedalsApp(QWidget):
         self.bridge.presetRequested.connect(self._apply_preset_from_hotkey)
 
         # --- Hotkey manager ---
-        self.hotkey_mgr = DynamicHotkeyManager(self.bridge.presetRequested.emit)
-        self.hotkey_mgr.start()
-        self.logs_tab.append_log("Global hotkeys initialized.")
-
-        self.hotkeys_tab = HotkeysTab(self.hotkey_mgr, log_callback=self.logs_tab.append_log)
-
-        # --- Sync tab (local ↔ Pico) ---
-        self.sync_tab = SyncTab(
-            on_after_sync_callback=self.load_config_from_file,
-            log_callback=self.logs_tab.append_log
+        self.hotkey_mgr = DynamicHotkeyManager(
+            self.bridge.presetRequested.emit,
+            error_callback=self.device_tab.append_log
         )
+        self.hotkey_mgr.start()
+        if self.hotkey_mgr.available:
+            self.device_tab.append_log("Global hotkeys initialized.")
+
+        self.hotkeys_tab = HotkeysTab(self.hotkey_mgr, log_callback=self.device_tab.append_log)
 
         self.tabs.addTab(self.config_tab, "⚙️ Configuration")
         self.tabs.addTab(self.hotkeys_tab, "⌨️ Hotkeys")
-        self.tabs.addTab(self.sync_tab, "🔌 Sync")
-        self.tabs.addTab(self.logs_tab, "📟 Logs")
+        self.tabs.addTab(self.device_tab, "🔌 Device")
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.check_serial)
         self.timer.start(100)
 
         self.refresh_serial_ports()
-        self.logs_tab.append_log("Select a serial port and click Connect to start reading Pico logs.")
+        self.device_tab.append_log("Select a serial port and click Connect to start reading Pico logs.")
 
         # --- Initial load ---
         self.load_initial_editor_state()
@@ -121,47 +117,48 @@ class PedalsApp(QWidget):
             return
         line = self.serial.get_line()
         if line:
-            self.logs_tab.append_log(f"[Pico] {line}")
+            self.device_tab.append_log(f"[Pico] {line}")
 
     def refresh_serial_ports(self):
         """Detect serial ports and refresh the dropdown in the logs tab."""
         ports = self.serial.list_available_ports()
-        self.logs_tab.set_available_ports(ports)
+        self.device_tab.set_available_ports(ports)
         if ports:
-            self.logs_tab.append_log(f"Detected serial ports: {', '.join(ports)}")
+            self.device_tab.append_log(f"Detected serial ports: {', '.join(ports)}")
         else:
-            self.logs_tab.append_log("No active serial ports detected.")
+            self.device_tab.append_log("No active serial ports detected.")
 
     def connect_serial(self, port):
         """Connect to the selected serial port."""
         if not port:
-            self.logs_tab.append_log("Select a serial port before connecting.")
+            self.device_tab.append_log("Select a serial port before connecting.")
             return
 
         if self.serial.is_connected():
             if self.serial.port == port:
-                self.logs_tab.append_log(f"Already connected to {port}.")
+                self.device_tab.append_log(f"Already connected to {port}.")
                 return
             self.disconnect_serial()
 
         try:
             self.serial.start(port=port)
-            self.logs_tab.append_log(f"Connected to Pico on {port}.")
+            self.device_tab.append_log(f"Connected to Pico on {port}.")
+            self.import_config_from_device()
         except Exception as e:
-            self.logs_tab.append_log(f"[Serial connect error]: {e}")
+            self.device_tab.append_log(f"[Serial connect error]: {e}")
 
     def disconnect_serial(self):
         """Disconnect from the current serial port if connected."""
         if not self.serial.is_connected():
-            self.logs_tab.append_log("Serial port is not connected.")
+            self.device_tab.append_log("Serial port is not connected.")
             return
 
         port = self.serial.port
         try:
             self.serial.stop()
-            self.logs_tab.append_log(f"Disconnected from {port}.")
+            self.device_tab.append_log(f"Disconnected from {port}.")
         except Exception as e:
-            self.logs_tab.append_log(f"[Serial disconnect error]: {e}")
+            self.device_tab.append_log(f"[Serial disconnect error]: {e}")
 
     def load_initial_editor_state(self):
         """Load the first preset into the editor or fall back to config.json."""
@@ -174,7 +171,7 @@ class PedalsApp(QWidget):
             self.current_preset_name = None
             self.current_config = load_config()
             self.config_tab.load_config(self.current_config)
-            self.logs_tab.append_log("Loaded config.json")
+            self.device_tab.append_log("Loaded config.json")
             self.update_status("No preset selected")
 
     def load_config(self):
@@ -185,7 +182,7 @@ class PedalsApp(QWidget):
 
         self.current_config = load_config()
         self.config_tab.load_config(self.current_config)
-        self.logs_tab.append_log("Loaded config.json")
+        self.device_tab.append_log("Loaded config.json")
 
     def load_config_from_file(self):
         """Load config.json into the editor as a standalone working state."""
@@ -194,7 +191,7 @@ class PedalsApp(QWidget):
         self.config_tab.refresh_presets(list_presets())
         self.config_tab.clear_preset_selection()
         self.config_tab.load_config(self.current_config)
-        self.logs_tab.append_log("Loaded config.json into the editor.")
+        self.device_tab.append_log("Loaded config.json into the editor.")
         self.update_status("Editing local config.json")
 
     def save_config(self):
@@ -202,9 +199,9 @@ class PedalsApp(QWidget):
         try:
             self.current_config = self.config_tab.get_current_config()
             save_config(self.current_config)
-            self.logs_tab.append_log("💾 Saved current editor state to config.json")
+            self.device_tab.append_log("💾 Saved current editor state to config.json")
         except Exception as e:
-            self.logs_tab.append_log(f"[Save error]: {e}")
+            self.device_tab.append_log(f"[Save error]: {e}")
 
     def select_preset(self, name, update_selector=True):
         """Load a preset into the editor."""
@@ -218,16 +215,16 @@ class PedalsApp(QWidget):
             if update_selector:
                 self.config_tab.refresh_presets(list_presets(), selected_name=name)
             save_config(config)
-            self.logs_tab.append_log(f"Loaded preset '{name}' into the editor.")
+            self.device_tab.append_log(f"Loaded preset '{name}' into the editor.")
             self.update_status(f"✅ Active preset: {name}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Preset load error]: {e}")
+            self.device_tab.append_log(f"[Preset load error]: {e}")
 
     def save_selected_preset(self):
         """Save the current editor state to the selected preset."""
         name = self.config_tab.selected_preset_name()
         if not name:
-            self.logs_tab.append_log("Select a preset before saving.")
+            self.device_tab.append_log("Select a preset before saving.")
             return
         try:
             config = self.config_tab.get_current_config()
@@ -237,10 +234,10 @@ class PedalsApp(QWidget):
             self.current_config = config
             self.config_tab.refresh_presets(list_presets(), selected_name=name)
             self.hotkeys_tab.redraw_hotkeys_ui()
-            self.logs_tab.append_log(f"💾 Saved preset '{name}'.")
+            self.device_tab.append_log(f"💾 Saved preset '{name}'.")
             self.update_status(f"✅ Active preset: {name}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Preset save error]: {e}")
+            self.device_tab.append_log(f"[Preset save error]: {e}")
 
     def load_current_config_to_device(self):
         """Send the current editor state to the Pico without changing preset files."""
@@ -249,15 +246,45 @@ class PedalsApp(QWidget):
             save_config(config)
             self.current_config = config
             path = sync_to_pico()
-            self.logs_tab.append_log(f"🔌 Loaded current editor state to Pico → {path}")
+            self.device_tab.append_log(f"🔌 Loaded current editor state to Pico → {path}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Device sync error]: {e}")
+            self.device_tab.append_log(f"[Device sync error]: {e}")
+
+    def download_config_from_device(self):
+        """Download config.json from the Pico and load it into the editor."""
+        try:
+            self.import_config_from_device()
+        except Exception as e:
+            self.device_tab.append_log(f"[Download error from device]: {e}")
+
+    def import_config_from_device(self):
+        """Import the connected device config and map it to a matching or new preset."""
+        path = sync_from_pico()
+        device_config = load_config()
+        self.current_config = device_config
+        self.device_tab.append_log(f"📂 Downloaded config.json from Pico → {path}")
+
+        matching_preset = self.find_matching_preset(device_config)
+        if matching_preset:
+            self.select_preset(matching_preset)
+            self.device_tab.append_log(f"Matched device config to preset '{matching_preset}'.")
+            return
+
+        preset_name = self.create_device_preset_name()
+        save_preset(preset_name, device_config)
+        self.current_preset_name = preset_name
+        self.current_config = device_config
+        self.config_tab.refresh_presets(list_presets(), selected_name=preset_name)
+        self.config_tab.load_config(device_config)
+        self.hotkeys_tab.redraw_hotkeys_ui()
+        self.device_tab.append_log(f"Created new preset '{preset_name}' from device config.")
+        self.update_status(f"✅ Active preset: {preset_name}")
 
     def save_and_load_selected_preset(self):
         """Save the selected preset and immediately send it to the Pico."""
         name = self.config_tab.selected_preset_name()
         if not name:
-            self.logs_tab.append_log("Select a preset before saving and loading.")
+            self.device_tab.append_log("Select a preset before saving and loading.")
             return
         try:
             config = self.config_tab.get_current_config()
@@ -268,15 +295,15 @@ class PedalsApp(QWidget):
             self.config_tab.refresh_presets(list_presets(), selected_name=name)
             self.hotkeys_tab.redraw_hotkeys_ui()
             path = sync_to_pico()
-            self.logs_tab.append_log(f"💾🔌 Saved preset '{name}' and loaded it to Pico → {path}")
+            self.device_tab.append_log(f"💾🔌 Saved preset '{name}' and loaded it to Pico → {path}")
             self.update_status(f"✅ Active preset: {name}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Save and load error]: {e}")
+            self.device_tab.append_log(f"[Save and load error]: {e}")
 
     def create_preset(self, name):
         """Create a new preset from the current editor state."""
         if name in list_presets():
-            self.logs_tab.append_log(f"Preset '{name}' already exists.")
+            self.device_tab.append_log(f"Preset '{name}' already exists.")
             return
         try:
             config = self.config_tab.get_current_config() if self.config_tab.input_widgets else load_config()
@@ -285,10 +312,10 @@ class PedalsApp(QWidget):
             self.current_config = config
             self.config_tab.refresh_presets(list_presets(), selected_name=name)
             self.hotkeys_tab.redraw_hotkeys_ui()
-            self.logs_tab.append_log(f"Created preset '{name}'.")
+            self.device_tab.append_log(f"Created preset '{name}'.")
             self.update_status(f"✅ Active preset: {name}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Preset create error]: {e}")
+            self.device_tab.append_log(f"[Preset create error]: {e}")
 
     def delete_selected_preset(self, name):
         """Delete a preset and load the next available editor state."""
@@ -297,7 +324,7 @@ class PedalsApp(QWidget):
             presets = list_presets()
             self.config_tab.refresh_presets(presets)
             self.hotkeys_tab.redraw_hotkeys_ui()
-            self.logs_tab.append_log(f"Deleted preset '{name}'.")
+            self.device_tab.append_log(f"Deleted preset '{name}'.")
 
             if presets:
                 self.select_preset(presets[0], update_selector=False)
@@ -307,15 +334,37 @@ class PedalsApp(QWidget):
                 self.config_tab.load_config(self.current_config)
                 self.update_status("No preset selected")
         except Exception as e:
-            self.logs_tab.append_log(f"[Preset delete error]: {e}")
+            self.device_tab.append_log(f"[Preset delete error]: {e}")
 
     def _apply_preset_from_hotkey(self, name: str):
         """Slot called from background thread via signal."""
         try:
             self.select_preset(name)
-            self.logs_tab.append_log(f"[Shortcut] Loaded preset: {name}")
+            self.device_tab.append_log(f"[Shortcut] Loaded preset: {name}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Shortcut] Failed to load preset '{name}': {e}")
+            self.device_tab.append_log(f"[Shortcut] Failed to load preset '{name}': {e}")
+
+    def find_matching_preset(self, config):
+        """Return the name of the preset whose config exactly matches the provided config."""
+        for preset_name in list_presets():
+            try:
+                if load_preset(preset_name) == config:
+                    return preset_name
+            except Exception:
+                continue
+        return None
+
+    def create_device_preset_name(self):
+        """Create a unique preset name for a config downloaded from the device."""
+        base_name = "Device preset"
+        existing = set(list_presets())
+        if base_name not in existing:
+            return base_name
+
+        suffix = 2
+        while f"{base_name} {suffix}" in existing:
+            suffix += 1
+        return f"{base_name} {suffix}"
 
     # ---------------------------------------------------------------------
 

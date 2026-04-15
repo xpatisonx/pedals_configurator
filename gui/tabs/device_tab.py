@@ -4,18 +4,23 @@ from PySide6.QtWidgets import (
 )
 
 
-class LogsTab(QWidget):
-    """Tab that displays log output from Pico and application events."""
+class DeviceTab(QWidget):
+    """Tab that groups device connection, sync actions, and runtime logs."""
 
-    def __init__(self, on_load_config, on_save_config, on_refresh_ports, on_connect_port, on_disconnect_port):
+    def __init__(
+        self,
+        on_refresh_ports,
+        on_connect_port,
+        on_disconnect_port,
+        on_upload_config,
+        on_download_config,
+    ):
         super().__init__()
         self.layout = QVBoxLayout()
 
-        # Title label
-        self.label = QLabel("📟 Pico Logs:")
+        self.label = QLabel("🔌 Device Connection and Logs")
         self.layout.addWidget(self.label)
 
-        # Serial controls
         serial_layout = QHBoxLayout()
         self.port_box = QComboBox()
         self.port_box.setPlaceholderText("Select a serial port")
@@ -33,25 +38,29 @@ class LogsTab(QWidget):
         disconnect_btn.clicked.connect(on_disconnect_port)
         serial_layout.addWidget(disconnect_btn)
 
-        self.layout.addLayout(serial_layout)
+        serial_container = QWidget()
+        serial_container.setLayout(serial_layout)
+        self.layout.addWidget(serial_container)
 
-        # Log output area
+        sync_layout = QHBoxLayout()
+
+        upload_btn = QPushButton("⬆️ Upload to Device")
+        upload_btn.clicked.connect(on_upload_config)
+        sync_layout.addWidget(upload_btn)
+
+        download_btn = QPushButton("⬇️ Download from Device")
+        download_btn.clicked.connect(on_download_config)
+        sync_layout.addWidget(download_btn)
+
+        sync_container = QWidget()
+        sync_container.setLayout(sync_layout)
+        self.layout.addWidget(sync_container)
+
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
         self.layout.addWidget(self.log_box)
 
-        # Buttons for reloading and saving configuration
-        load_btn = QPushButton("🔄 Load Config")
-        load_btn.clicked.connect(on_load_config)
-        self.layout.addWidget(load_btn)
-
-        save_btn = QPushButton("💾 Save Config")
-        save_btn.clicked.connect(on_save_config)
-        self.layout.addWidget(save_btn)
-
         self.setLayout(self.layout)
-
-    # ------------------------------------------------------------------
 
     def append_log(self, text: str):
         """Append a new line of text to the log display."""

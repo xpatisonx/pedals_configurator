@@ -8,10 +8,10 @@ import PySide6.QtSvg
 
 from pico_serial.serial_reader import SerialReader
 from hotkeys.hotkey_manager import DynamicHotkeyManager
-from config.config_manager import save_config
-from config.pico_sync import sync_to_pico, sync_from_pico
+from config.config_manager import save_config, load_config
+from config.pico_sync import sync_to_pico
+from config.preset_manager import list_presets, load_preset, save_preset, delete_preset
 
-from gui.tabs.presets_tab import PresetsTab
 from gui.tabs.logs_tab import LogsTab
 from gui.tabs.config_tab import ConfigTab
 from gui.tabs.hotkeys_tab import HotkeysTab
@@ -42,7 +42,16 @@ class PedalsApp(QWidget):
         self.update_status("No active preset")
 
         # --- Tabs ---
-        self.config_tab = ConfigTab()
+        self.current_preset_name = None
+        self.current_config = []
+        self.config_tab = ConfigTab(
+            self.select_preset,
+            self.save_selected_preset,
+            self.load_current_config_to_device,
+            self.save_and_load_selected_preset,
+            self.create_preset,
+            self.delete_selected_preset,
+        )
         self.serial = SerialReader(baudrate=115200)
         self.logs_tab = LogsTab(
             self.load_config,
@@ -51,7 +60,6 @@ class PedalsApp(QWidget):
             self.connect_serial,
             self.disconnect_serial
         )
-        self.presets_tab = PresetsTab(self.on_preset_applied, self.config_tab.get_current_config)
 
         # --- Hotkey bridge (thread-safe signal emitter) ---
         self.bridge = HotkeyBridge()
@@ -66,12 +74,11 @@ class PedalsApp(QWidget):
 
         # --- Sync tab (local ↔ Pico) ---
         self.sync_tab = SyncTab(
-            on_after_sync_callback=self.load_config,
+            on_after_sync_callback=self.load_config_from_file,
             log_callback=self.logs_tab.append_log
         )
 
         self.tabs.addTab(self.config_tab, "⚙️ Configuration")
-        self.tabs.addTab(self.presets_tab, "🎛️ Presets")
         self.tabs.addTab(self.hotkeys_tab, "⌨️ Hotkeys")
         self.tabs.addTab(self.sync_tab, "🔌 Sync")
         self.tabs.addTab(self.logs_tab, "📟 Logs")
@@ -84,7 +91,7 @@ class PedalsApp(QWidget):
         self.logs_tab.append_log("Select a serial port and click Connect to start reading Pico logs.")
 
         # --- Initial load ---
-        self.load_config()
+        self.load_initial_editor_state()
 
         # --- System tray icon ---
         self.tray_icon = QSystemTrayIcon(self)
@@ -156,72 +163,157 @@ class PedalsApp(QWidget):
         except Exception as e:
             self.logs_tab.append_log(f"[Serial disconnect error]: {e}")
 
+    def load_initial_editor_state(self):
+        """Load the first preset into the editor or fall back to config.json."""
+        presets = list_presets()
+        self.config_tab.refresh_presets(presets)
+
+        if presets:
+            self.select_preset(presets[0], update_selector=False)
+        else:
+            self.current_preset_name = None
+            self.current_config = load_config()
+            self.config_tab.load_config(self.current_config)
+            self.logs_tab.append_log("Loaded config.json")
+            self.update_status("No preset selected")
+
     def load_config(self):
-        """Load configuration from local config.json."""
-        from config.config_manager import load_config
+        """Reload the editor from the selected preset or local config fallback."""
+        if self.current_preset_name:
+            self.select_preset(self.current_preset_name)
+            return
+
         self.current_config = load_config()
         self.config_tab.load_config(self.current_config)
         self.logs_tab.append_log("Loaded config.json")
 
+    def load_config_from_file(self):
+        """Load config.json into the editor as a standalone working state."""
+        self.current_preset_name = None
+        self.current_config = load_config()
+        self.config_tab.refresh_presets(list_presets())
+        self.config_tab.clear_preset_selection()
+        self.config_tab.load_config(self.current_config)
+        self.logs_tab.append_log("Loaded config.json into the editor.")
+        self.update_status("Editing local config.json")
+
     def save_config(self):
-        """Save current configuration and try syncing to Pico."""
+        """Save the current editor state to config.json without syncing."""
         try:
             self.current_config = self.config_tab.get_current_config()
             save_config(self.current_config)
-
-            # auto-sync to Pico
-            try:
-                path = sync_to_pico()
-                self.logs_tab.append_log(f"💾 Saved locally and sent to Pico → {path}")
-            except Exception as e:
-                self.logs_tab.append_log(f"⚠️ Saved locally, but failed to sync to Pico: {e}")
-
+            self.logs_tab.append_log("💾 Saved current editor state to config.json")
         except Exception as e:
             self.logs_tab.append_log(f"[Save error]: {e}")
 
-    def on_preset_applied(self, config, name):
-        """Apply preset, save locally, and sync to Pico."""
-        from config.config_manager import save_config
-        from config.pico_sync import sync_to_pico
-
-        self.current_config = config
-        self.config_tab.load_config(config)
-
+    def select_preset(self, name, update_selector=True):
+        """Load a preset into the editor."""
+        if not name:
+            return
         try:
+            config = load_preset(name)
+            self.current_preset_name = name
+            self.current_config = config
+            self.config_tab.load_config(config)
+            if update_selector:
+                self.config_tab.refresh_presets(list_presets(), selected_name=name)
             save_config(config)
-            self.logs_tab.append_log(f"💾 Preset '{name}' applied and saved locally.")
+            self.logs_tab.append_log(f"Loaded preset '{name}' into the editor.")
+            self.update_status(f"✅ Active preset: {name}")
         except Exception as e:
-            self.logs_tab.append_log(f"[Local save error]: {e}")
+            self.logs_tab.append_log(f"[Preset load error]: {e}")
 
+    def save_selected_preset(self):
+        """Save the current editor state to the selected preset."""
+        name = self.config_tab.selected_preset_name()
+        if not name:
+            self.logs_tab.append_log("Select a preset before saving.")
+            return
         try:
+            config = self.config_tab.get_current_config()
+            save_preset(name, config)
+            save_config(config)
+            self.current_preset_name = name
+            self.current_config = config
+            self.config_tab.refresh_presets(list_presets(), selected_name=name)
+            self.hotkeys_tab.redraw_hotkeys_ui()
+            self.logs_tab.append_log(f"💾 Saved preset '{name}'.")
+            self.update_status(f"✅ Active preset: {name}")
+        except Exception as e:
+            self.logs_tab.append_log(f"[Preset save error]: {e}")
+
+    def load_current_config_to_device(self):
+        """Send the current editor state to the Pico without changing preset files."""
+        try:
+            config = self.config_tab.get_current_config()
+            save_config(config)
+            self.current_config = config
             path = sync_to_pico()
-            self.logs_tab.append_log(f"🔌 Config sent to Pico → {path}")
+            self.logs_tab.append_log(f"🔌 Loaded current editor state to Pico → {path}")
         except Exception as e:
-            self.logs_tab.append_log(f"⚠️ Failed to send to Pico: {e}")
+            self.logs_tab.append_log(f"[Device sync error]: {e}")
 
+    def save_and_load_selected_preset(self):
+        """Save the selected preset and immediately send it to the Pico."""
+        name = self.config_tab.selected_preset_name()
+        if not name:
+            self.logs_tab.append_log("Select a preset before saving and loading.")
+            return
         try:
-            self.presets_tab.preset_box.setCurrentText(name)
-        except Exception:
-            pass
+            config = self.config_tab.get_current_config()
+            save_preset(name, config)
+            save_config(config)
+            self.current_preset_name = name
+            self.current_config = config
+            self.config_tab.refresh_presets(list_presets(), selected_name=name)
+            self.hotkeys_tab.redraw_hotkeys_ui()
+            path = sync_to_pico()
+            self.logs_tab.append_log(f"💾🔌 Saved preset '{name}' and loaded it to Pico → {path}")
+            self.update_status(f"✅ Active preset: {name}")
+        except Exception as e:
+            self.logs_tab.append_log(f"[Save and load error]: {e}")
 
-        self.update_status(f"✅ Active preset: {name}")
+    def create_preset(self, name):
+        """Create a new preset from the current editor state."""
+        if name in list_presets():
+            self.logs_tab.append_log(f"Preset '{name}' already exists.")
+            return
+        try:
+            config = self.config_tab.get_current_config() if self.config_tab.input_widgets else load_config()
+            save_preset(name, config)
+            self.current_preset_name = name
+            self.current_config = config
+            self.config_tab.refresh_presets(list_presets(), selected_name=name)
+            self.hotkeys_tab.redraw_hotkeys_ui()
+            self.logs_tab.append_log(f"Created preset '{name}'.")
+            self.update_status(f"✅ Active preset: {name}")
+        except Exception as e:
+            self.logs_tab.append_log(f"[Preset create error]: {e}")
 
-    def on_hotkey_preset_loaded(self, config, name):
-        """Triggered when a preset is loaded via global hotkey."""
-        self.on_preset_applied(config, name)
-        self.logs_tab.append_log(f"[Hotkey] Loaded preset: {name}")
+    def delete_selected_preset(self, name):
+        """Delete a preset and load the next available editor state."""
+        try:
+            delete_preset(name)
+            presets = list_presets()
+            self.config_tab.refresh_presets(presets)
+            self.hotkeys_tab.redraw_hotkeys_ui()
+            self.logs_tab.append_log(f"Deleted preset '{name}'.")
+
+            if presets:
+                self.select_preset(presets[0], update_selector=False)
+            else:
+                self.current_preset_name = None
+                self.current_config = load_config()
+                self.config_tab.load_config(self.current_config)
+                self.update_status("No preset selected")
+        except Exception as e:
+            self.logs_tab.append_log(f"[Preset delete error]: {e}")
 
     def _apply_preset_from_hotkey(self, name: str):
         """Slot called from background thread via signal."""
-        from config.preset_manager import load_preset
         try:
-            config = load_preset(name)
-            self.on_preset_applied(config, name)
+            self.select_preset(name)
             self.logs_tab.append_log(f"[Shortcut] Loaded preset: {name}")
-            try:
-                self.presets_tab.preset_box.setCurrentText(name)
-            except Exception:
-                pass
         except Exception as e:
             self.logs_tab.append_log(f"[Shortcut] Failed to load preset '{name}': {e}")
 

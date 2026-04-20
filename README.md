@@ -12,7 +12,7 @@ The project lets you:
 
 ## Screenshot
 
-![Pedals Configurator UI](img/img.png)
+![Pedals Configurator UI](img/app-screenshot.png)
 
 ## What Is In This Repo
 
@@ -55,6 +55,13 @@ Ready-made desktop builds are published in GitHub Releases:
 - `PedalsConfigurator-windows.zip`
 - `PedalsConfigurator-macos.zip`
 - `PedalsConfigurator-linux.zip`
+
+Direct download links:
+
+- [Windows](https://github.com/xpatisonx/pedals_configurator/releases/latest/download/PedalsConfigurator-windows.zip)
+- [macOS](https://github.com/xpatisonx/pedals_configurator/releases/latest/download/PedalsConfigurator-macos.zip)
+- [Linux](https://github.com/xpatisonx/pedals_configurator/releases/latest/download/PedalsConfigurator-linux.zip)
+- [All releases](https://github.com/xpatisonx/pedals_configurator/releases)
 
 ## Firmware Setup
 

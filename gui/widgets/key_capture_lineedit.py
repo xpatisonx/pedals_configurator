@@ -14,6 +14,11 @@ class KeyCaptureLineEdit(QLineEdit):
         super().__init__()
         self.setPlaceholderText("Press key(s)...")
         self.for_config = for_config
+        self.action_type = "key"
+
+    def set_action_type(self, action_type):
+        """Store the currently selected action type for key capture rules."""
+        self.action_type = action_type
 
     # ------------------------------------------------------------------
 
@@ -37,7 +42,13 @@ class KeyCaptureLineEdit(QLineEdit):
         if key_name not in ["CTRL", "SHIFT", "ALT", "META"]:
             parts.append(key_name.upper())
 
-        combo = "+".join(parts)
+        if self.action_type == "key":
+            if key_name in ["CTRL", "SHIFT", "ALT", "META"]:
+                combo = key_name
+            else:
+                combo = key_name.upper()
+        else:
+            combo = "+".join(parts)
 
         if self.for_config:
             # Translate GUI → HID and immediately display HID names

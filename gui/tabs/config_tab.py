@@ -4,7 +4,8 @@ from PySide6.QtWidgets import (
     QLabel, QComboBox, QPushButton, QMessageBox, QInputDialog
 )
 
-from gui.widgets.key_capture_lineedit import KeyCaptureLineEdit
+from config.action_config import normalize_config_entry
+from gui.widgets.action_value_widget import ActionValueWidget
 
 
 class ConfigTab(QWidget):
@@ -160,8 +161,15 @@ class ConfigTab(QWidget):
         for pin_label, type_box, value_edit, _ in self.input_widgets:
             pin = pin_label.text()
             action_type = type_box.currentText()
-            value = value_edit.get_parsed_value(action_type)
-            new_config.append([pin, action_type, value])
+            if not value_edit.is_valid():
+                QMessageBox.warning(
+                    self,
+                    "Invalid action",
+                    "{}: {}".format(pin, value_edit.validation_message),
+                )
+                raise ValueError("{}: {}".format(pin, value_edit.validation_message))
+            value = value_edit.get_parsed_value(action_type, pin)
+            new_config.append(normalize_config_entry([pin, action_type, value], strict=True))
         return new_config
 
     # ------------------------------------------------------------------
@@ -183,8 +191,9 @@ class ConfigTab(QWidget):
         type_box.setCurrentText(action_type)
         row.addWidget(type_box)
 
-        value_edit = KeyCaptureLineEdit(for_config=True)
-        value_edit.setText("+".join(value) if isinstance(value, list) else str(value))
+        value_edit = ActionValueWidget()
+        value_edit.set_pin_name(pin)
+        value_edit.set_value(value, action_type)
         row.addWidget(value_edit)
 
         remove_btn = QPushButton("❌")
@@ -195,6 +204,7 @@ class ConfigTab(QWidget):
         self.config_layout.insertWidget(len(self.input_widgets), container)
 
         self.input_widgets.append((pin_label, type_box, value_edit, container))
+        type_box.currentTextChanged.connect(value_edit.set_action_type)
         remove_btn.clicked.connect(lambda: self.remove_pin_row(container))
 
     # ------------------------------------------------------------------

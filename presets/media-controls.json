@@ -1,0 +1,22 @@
+[
+    [
+        "GP0",
+        "ccc",
+        "SCAN_PREVIOUS_TRACK"
+    ],
+    [
+        "GP1",
+        "ccc",
+        "PLAY_PAUSE"
+    ],
+    [
+        "GP2",
+        "ccc",
+        "SCAN_NEXT_TRACK"
+    ],
+    [
+        "GP3",
+        "ccc",
+        "MUTE"
+    ]
+]

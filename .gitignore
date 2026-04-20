@@ -29,6 +29,8 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+._*
+.fseventsd/
 
 # =========================
 # Distribution / Packaging
@@ -65,6 +67,7 @@ dist/
 # Pliki konfiguracyjne użytkownika
 config/config.json
 config/hotkeys.json
+firmware/boot_out.txt
 
 # Cache PyInstaller / build
 __pyinstaller/

@@ -1,5 +1,6 @@
 import os
 import json
+from config.action_config import normalize_config
 
 # Directory where all preset JSON files are stored
 PRESET_DIR = "presets"
@@ -21,7 +22,7 @@ def load_preset(name):
     """
     path = os.path.join(PRESET_DIR, f"{name}.json")
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        return normalize_config(json.load(f))
 
 
 def save_preset(name, config):
@@ -32,8 +33,9 @@ def save_preset(name, config):
     if not os.path.exists(PRESET_DIR):
         os.makedirs(PRESET_DIR)
     path = os.path.join(PRESET_DIR, f"{name}.json")
+    normalized = normalize_config(config, strict=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=4)
+        json.dump(normalized, f, indent=4)
 
 
 def delete_preset(name):

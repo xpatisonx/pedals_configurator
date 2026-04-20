@@ -2,25 +2,21 @@
     [
         "GP0",
         "key",
-        "A"
+        "LEFT_ARROW"
     ],
     [
         "GP1",
-        "cmb",
-        [
-            "B"
-        ]
+        "key",
+        "UP_ARROW"
     ],
     [
         "GP2",
-        "cmb",
-        [
-            "C"
-        ]
+        "key",
+        "RIGHT_ARROW"
     ],
     [
         "GP3",
         "key",
-        "D"
+        "DOWN_ARROW"
     ]
 ]

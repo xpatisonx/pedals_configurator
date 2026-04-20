@@ -1,0 +1,25 @@
+[
+    [
+        "GP0",
+        "key",
+        "UP_ARROW"
+    ],
+    [
+        "GP1",
+        "key",
+        "DOWN_ARROW"
+    ],
+    [
+        "GP2",
+        "cmb",
+        [
+            "GUI",
+            "SPACE"
+        ]
+    ],
+    [
+        "GP3",
+        "ccc",
+        "PLAY_PAUSE"
+    ]
+]

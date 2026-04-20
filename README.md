@@ -1,175 +1,100 @@
-# 🎛️ Pedals Configurator
+# Pedals Configurator
 
-A desktop application for configuring custom foot pedals based on **Raspberry Pi Pico** running **CircuitPython**.  
-It allows you to map pedal GPIO pins to keyboard actions (single keys or key combos), manage presets,  
-and send configurations directly to the Pico as `config.json`.
+Desktop app and ready-to-copy firmware for a custom foot pedal built on Raspberry Pi Pico and CircuitPython.
 
-Built with **Python + PySide6 (Qt)** and sprinkled with sarcasm and too much love for automation.
+The project lets you:
 
----
+- configure Pico GPIO pins from a desktop GUI
+- assign single keys, keyboard shortcuts, and media controls
+- save and switch presets
+- sync `config.json` directly to the `CIRCUITPY` drive
+- copy a complete offline firmware bundle to a fresh Pico without downloading extra libraries
 
-## 🚀 Features
+## Screenshot
 
-- 🦶 **Pedal Configuration GUI**  
-  Assign key actions to individual Pico GPIO pins with a simple interface.
+![Pedals Configurator UI](img/img.png)
 
-- 🎚️ **Presets System**  
-  Save, load, and manage pedal profiles.  
-  Auto-save and auto-sync with Pico’s `config.json`.
+## What Is In This Repo
 
-- ⌨️ **Global Hotkeys**  
-  Switch presets on the fly using system-wide keyboard shortcuts.
+- [`gui/`](gui): PySide6 desktop interface
+- [`config/`](config): config loading, validation, translation, Pico sync
+- [`pico_serial/`](pico_serial): serial log reader
+- [`hotkeys/`](hotkeys): global preset hotkeys
+- [`presets/`](presets): sample public presets
+- [`firmware/`](firmware): complete CircuitPython bundle with `code.py`, `config.json`, and bundled `adafruit_hid`
 
-- 🔌 **Pico Integration**  
-  Automatically detects your connected `CIRCUITPY` drive and syncs the configuration file.
+## Features
 
-- 🪟 **System Tray Support**  
-  Runs quietly in the background. Minimize to tray, right-click to show, save, or quit.
+- `key`: one keyboard key per pin
+- `cmb`: multi-key shortcut per pin
+- `ccc`: media controls such as play/pause, mute, next track, and volume
+- immediate validation in the GUI for invalid mappings
+- preset save/load workflow
+- serial connection and device config import
+- offline firmware bundle for Raspberry Pi Pico
 
----
-
-## 🧰 Tech Stack
-
-| Component | Purpose |
-|------------|----------|
-| **PySide6 (Qt)** | GUI & Tray |
-| **psutil** | Detecting CIRCUITPY drive |
-| **keyboard** | Global hotkeys |
-| **pyserial** | Reading data from Pico serial port |
-| **Pillow** | Icon generation (optional) |
-| **darkdetect** | Theme-based icon switching (optional) |
-
----
-
-## 🪄 Installation
-
-Clone the repository and install dependencies:
+## Desktop App Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/pedals-configurator.git
-cd pedals-configurator
+git clone git@github.com:xpatisonx/pedals_configurator.git
+cd pedals_configurator
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-Run the application:
-
-```bash
 python main.py
 ```
 
----
+On Windows, activate the virtual environment with:
 
-## ⚙️ Configuration Files
-
-| File                     | Purpose                          |
-| ------------------------ | -------------------------------- |
-| `config/config.json`     | Main pedal mapping configuration |
-| `config/hotkeys.json`    | Global hotkey → preset bindings  |
-| `presets/*.json`         | User-defined pedal profiles      |
-| `icons/pedals.ico`       | The mighty rainbow pedal icon    |
-
----
-
-## 💾 Syncing with Pico
-
-When a CIRCUITPY device is connected:
-
-- The app detects it automatically,
-- Saves config.json directly to the Pico drive,
-- CircuitPython loads it on startup.
-
-Manual sync available under the 🔌 "Sync" tab.
-
----
-
-## 🧱 Build an executable (Windows)
-You can create a standalone .exe file using PyInstaller:
-
-```bash
-pyinstaller --onefile --noconsole --icon=icons/pedals_turbo.ico main.py
+```powershell
+.venv\Scripts\activate
 ```
-The generated .exe will include the custom icon and run without a console window.
 
----
+## Firmware Setup
 
-## 📂 Pedals Configurator – Project Overview
+The [`firmware/`](firmware) directory is self-contained.
 
-### 🧠 Core Application
-| File | Description |
-|------|--------------|
-| **`main.py`** | Application entry point. Initializes Qt (`QApplication`), sets global app icon, and launches the main window (`PedalsApp`). |
-| **`gui/main_window.py`** | Main GUI class — handles all tabs, the serial connection, hotkeys, Pico syncing, status bar, and tray icon behavior. |
+It already includes:
 
----
+- `code.py`
+- `config.json`
+- `lib/adafruit_hid/*.mpy`
 
-### 🎛️ GUI Tabs
-| File | Description |
-|------|--------------|
-| **`gui/tabs/config_tab.py`** | “Configuration” tab. Lets the user assign keyboard actions to each Pico GPIO pin. Dynamically adds/removes pin rows. |
-| **`gui/tabs/presets_tab.py`** | “Presets” tab. Manage configuration profiles — load, save, delete, and apply presets. |
-| **`gui/tabs/hotkeys_tab.py`** | “Hotkeys” tab. Lets users map global keyboard shortcuts to specific presets. Handles validation and duplicate prevention. |
-| **`gui/tabs/sync_tab.py`** | “Sync” tab. Manually upload/download the config file between the local machine and Pico (`CIRCUITPY`). |
-| **`gui/tabs/logs_tab.py`** | “Logs” tab. Displays serial output from the Pico and app logs. Also has buttons to reload or save config. |
+To install on a Pico:
 
----
+1. Flash CircuitPython to a Raspberry Pi Pico.
+2. Connect the board so it appears as `CIRCUITPY`.
+3. Copy everything from [`firmware/`](firmware) onto the drive.
+4. Wait for CircuitPython to reload.
 
-### 🧩 GUI Widgets
-| File | Description |
-|------|--------------|
-| **`gui/widgets/key_capture_lineedit.py`** | Custom text input field for capturing key combinations. Supports translation between Qt/Windows names and HID key strings (used in `config.json`). |
+No extra library download is required.
 
----
+## Example Files
 
-### ⚙️ Configuration & Sync
-| File | Description |
-|------|--------------|
-| **`config/config_manager.py`** | Handles loading and saving of the local `config.json` with atomic writes. Provides a default configuration. |
-| **`config/pico_sync.py`** | Detects the `CIRCUITPY` drive and synchronizes the config file to and from the connected Pico device. |
-| **`config/keycode_map.py`** | Maps GUI key names (`CTRL`, `ALT`, etc.) to HID keycodes used by `adafruit_hid.keycode`. Also supports reverse translation for display. |
-| **`config/preset_manager.py`** | Manages preset files — lists, loads, saves, and deletes JSON-based preset configs. |
+- [`config/config.example.json`](config/config.example.json): example desktop config
+- [`config/hotkeys.example.json`](config/hotkeys.example.json): example preset hotkeys
+- [`firmware/config.json`](firmware/config.json): ready-to-test firmware mapping
 
----
+The bundled firmware demo mapping is:
 
-### 🧠 Hotkey & Serial Logic
-| File | Description |
-|------|--------------|
-| **`hotkeys/hotkey_manager.py`** | Manages global system-wide hotkeys using the `keyboard` library. Runs in its own thread and emits preset change signals. |
-| **`pico_serial/serial_reader.py`** | Background thread for continuously reading data from the Pico’s serial output. Queues lines for safe access from the GUI thread. |
+- `GP0` -> `UP_ARROW`
+- `GP1` -> `DOWN_ARROW`
+- `GP2` -> `GUI + SPACE`
+- `GP3` -> `PLAY_PAUSE`
 
----
+## Sample Presets
 
-### 🖼️ Icons
-| File | Description |
-|------|--------------|
-| **`icons/pedals.svg`** | Main SVG icon (rainbow pedals). Used for generating app icon and tray icon. |
-| **`icons/pedals.ico`** | Windows ICO version of the icon — used in the taskbar and when packaging the app. |
+- [`presets/navigation.json`](presets/navigation.json)
+- [`presets/macos-demo.json`](presets/macos-demo.json)
+- [`presets/media-controls.json`](presets/media-controls.json)
+- [`presets/typing-demo.json`](presets/typing-demo.json)
 
----
+## Notes
 
-### 📦 Other Important Files
-| File | Description |
-|------|--------------|
-| **`requirements.txt`** | Lists required Python dependencies (PySide6, psutil, keyboard, pyserial, Pillow, etc.). |
-| **`.gitignore`** | Ignores environment folders (`venv/`), IDE configs (`.idea/`), build artifacts, and temporary files. |
-| **`README.md`** | Project overview, installation instructions, and usage guide. |
+- Global hotkeys may require extra permissions on macOS.
+- The app ignores local user config files like `config/config.json` and `config/hotkeys.json`; example versions are included instead.
+- `firmware/boot_out.txt` is intentionally excluded because it is generated by the specific board at runtime.
 
----
+## License
 
-## 🧑‍💻 Development Notes
-- Works best on Windows 10/11 (tested).
-- Run as Administrator if global hotkeys don’t register.
-- for Pico → CircuitPython firmware: https://circuitpython.org/board/raspberry_pi_pico/
-
-## 📸 Screenshots
-![img.png](img/img.png)
-
-## 👨‍💼 Author
-Built by Bartosz Połok
-
-because sometimes hands are not enough.
-
-> “It’s not automation until you can trigger it with your foot.”
->
->— Someone who definitely had too many pedals connected
-
-## 📜 License
-MIT License – do whatever you want, but don’t blame me if your foot triggers a system shutdown.
+[MIT](LICENSE)

@@ -1,0 +1,28 @@
+[
+    [
+        "GP0",
+        "key",
+        "ENTER"
+    ],
+    [
+        "GP1",
+        "cmb",
+        [
+            "GUI",
+            "TAB"
+        ]
+    ],
+    [
+        "GP2",
+        "cmb",
+        [
+            "GUI",
+            "SPACE"
+        ]
+    ],
+    [
+        "GP3",
+        "key",
+        "ESCAPE"
+    ]
+]

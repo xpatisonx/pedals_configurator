@@ -50,7 +50,11 @@ On Windows, activate the virtual environment with:
 .venv\Scripts\activate
 ```
 
-Ready-made Windows builds are published in the repository's GitHub Releases as `PedalsConfigurator-windows.zip`.
+Ready-made desktop builds are published in GitHub Releases:
+
+- `PedalsConfigurator-windows.zip`
+- `PedalsConfigurator-macos.zip`
+- `PedalsConfigurator-linux.zip`
 
 ## Firmware Setup
 
